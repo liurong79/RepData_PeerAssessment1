@@ -1,25 +1,107 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Reproducible Research Peer Assignment 1"
+author: "Liu, Rong"
+date: "Saturday, January 17, 2015"
+output: html_document
 ---
 
+This document is an assignment from Reproducible Research. For more details on the requirements please see
+<https://class.coursera.org/repdata-010/human_grading/view/courses/973511/assessments/3/submissions>.
 
-## Loading and preprocessing the data
+The data for this assignment can be downloaded from the course web site:
+<https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip> [52K]
 
+The variables included in this dataset are:
+steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+date: The date on which the measurement was taken in YYYY-MM-DD format
+interval: Identifier for the 5-minute interval in which measurement was taken
 
+The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset.
 
-## What is mean total number of steps taken per day?
+##Loading and preprocessing the data
+```{r}
+data = read.csv("./activity.csv")
+#data[["date"]] = strptime(data[["date"]], "%Y-%m-%d")
+summary(data)
+```
 
+##What is mean total number of steps taken per day?
+```{r message = FALSE}
+library(dplyr)
+library(ggplot2)
+data_day = summarize(group_by(data, date), steps=sum(steps))
+data_day = data_day[complete.cases(data_day), ]
+ggplot(data_day, aes(x=steps)) + geom_histogram() + ggtitle("Histogram of Steps Taken per Day")
+```
 
+Mean steps taken per day: 
+```{r}
+mean_val = mean(data_day$steps); mean_val
+```
 
-## What is the average daily activity pattern?
+Median steps taken per day: 
+```{r}
+median_val = median(data_day$steps); median_val
+```
 
+##What is the average daily activity pattern?
+```{r message = FALSE}
+data_interval = summarize(group_by(data, interval), steps=mean(steps, na.rm=TRUE))
+data_interval = data_interval[complete.cases(data_interval), ]
+ggplot(data_interval, aes(y=steps, x=interval)) + geom_line() + ggtitle("Average Number of Steps Taken per Interval")
+```
 
+The 5-minute interval that contains the maximum number of steps is:
+```{r message = FALSE}
+index = which.max(data_interval$steps)
+data_interval$steps[index]
+```
 
-## Imputing missing values
+#Imputing missing values
+The total number of missing values in the dataset is:
+```{r}
+nrow(data) - sum(complete.cases(data))
+```
 
+To fill the missing value in any 5-minute interval, We use the mean value for that 5-minute interval across all days. The data after filling missing values is:
+```{r}
+data_filled = data
+for (i in 1:nrow(data)) {
+    steps = data$steps[i]
+    interval = data$interval[i]
+    if (is.na(steps)) {
+        data_filled[i, 1] = data_interval[data_interval$interval==interval, 2]
+    }
+}
+summary(data_filled)
+```
 
+```{r message=FALSE}
+data_filled_day = summarize(group_by(data_filled, date), steps=sum(steps))
+ggplot(data_filled_day, aes(x=steps)) + geom_histogram() + ggtitle("Histogram of Steps Taken Per Day (after NA replaced)")
+```
 
-## Are there differences in activity patterns between weekdays and weekends?
+The mean of total number of steps taken per day is:
+```{r message=FALSE}
+mean_val_filled = mean(data_filled_day$steps); mean_val_filled
+```
+
+The median of total number of steps taken per day is:
+```{r message=FALSE}
+median_val_filled = median(data_filled_day$steps); median_val_filled
+```
+
+The mean value is as same as that of the orginal value.
+The difference between the median value and that of the original data is negligible.
+
+By imputting missing values, variance of the steps taken per day decreased from `r var(data_day$steps)` to `r var(data_filled_day$steps)`
+
+##Are there differences in activity patterns between weekdays and weekends?
+```{r message=FALSE}
+data_weekday <-
+    data_filled %>%
+    mutate(day = ifelse(weekdays(as.POSIXct(date)) %in% c("Saturday", "Sunday"), "weekend", "weekday")) %>%
+    group_by(interval, day) %>%
+    summarize(steps=mean(steps))
+ggplot(data_weekday, aes(interval,steps)) + geom_line() + facet_wrap(~day, nrow=2)
+```
